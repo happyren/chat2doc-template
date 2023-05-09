@@ -1,11 +1,7 @@
-// Next.js API route support: https://nextjs.org/docs/api-routes/introduction
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { OpenAIEmbeddings } from "langchain/embeddings/openai";
-import { MarkdownLoader } from "@/utils/markdownLoader";
-import { DirectoryLoader } from "langchain/document_loaders/fs/directory";
-import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-import { PineconeStore } from 'langchain/vectorstores/pinecone';
 import { PineconeClient } from '@pinecone-database/pinecone';
+import { IngestService } from '@/services/ingest';
+import { initPineconeClient } from '@/utils/pineconeClient';
 
 type Data = {
   data?: number[][] | undefined,
@@ -35,7 +31,7 @@ async function initPinecone() {
   }
 }
 
-async function deleteHandler(req: NextApiRequest) {
+async function deleteHandler() {
   const index = await initPinecone();
 
   const res = await index.delete1({ deleteAll: true, namespace: process.env.PINECONE_INDEX_NAMESPACE });
@@ -43,53 +39,22 @@ async function deleteHandler(req: NextApiRequest) {
  return res;
 }
 
-async function postHandler(req: NextApiRequest) {
-  if (!process.env.PINECONE_INDEX) {
-    throw new Error('Pinecone index missing');
-  }
-
-  const directoryPath = process.env.CONTENT_DIRECTORY_PATH || '';
-  const directoryLoader = new DirectoryLoader(directoryPath, {
-    '.md': (path) => new MarkdownLoader(path),
-  });
-
-  const rawDocs = await directoryLoader.load();
-
-  const textSplitter = new RecursiveCharacterTextSplitter({
-    chunkSize: 1000,
-    chunkOverlap: 200,
-  });
-
-  const docs = await textSplitter.splitDocuments(rawDocs);
-
-  let res;
-  try {
-    const embeddings = new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY });
-    res = await embeddings.embedDocuments(docs.map(d => d.pageContent));
-
-    const index = await initPinecone();
-
-    await PineconeStore.fromDocuments(docs, new OpenAIEmbeddings(), {
-      pineconeIndex: index,
-      namespace: process.env.PINECONE_INDEX_NAMESPACE,
-      textKey: 'text',
-    });
-  } catch (error) {
-    console.log(error);
-  }
-
-  return res;
-}
-
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<Data>
 ) {
+  const pineconeClient = await initPineconeClient();
+  const ingestService = new IngestService(pineconeClient);
+
+  if(!process.env.PINECONE_INDEX_NAMESPACE) {
+    throw new Error('Pinecone index namespace missing');
+  }
+
   if (req.method === 'POST') {
-    const data = await postHandler(req);
+    const data = await ingestService.ingest(process.env.PINECONE_INDEX_NAMESPACE);
     res.status(200).json({ data });
   } else if (req.method === 'DELETE') {
-    const result = await deleteHandler(req);
+    const result = await deleteHandler();
     res.status(200).json({ result });
   }
 }
