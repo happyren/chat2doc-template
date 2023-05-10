@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { IngestService } from '@/services/ingest';
+import { IngestService } from '@/services/ingestService';
 import { initPineconeClient } from '@/utils/pineconeClient';
 
 type Data = {
@@ -12,7 +12,7 @@ export default async function handler(
   res: NextApiResponse<Data>
 ) {
   const pineconeClient = await initPineconeClient();
-  const ingestService = new IngestService(pineconeClient);
+  const ingestService = IngestService(pineconeClient);
 
   if(!process.env.PINECONE_INDEX) {
     throw new Error('Pinecone index missing');
@@ -22,7 +22,7 @@ export default async function handler(
     const data = await ingestService.ingest(process.env.PINECONE_INDEX);
     res.status(200).json({ data });
   } else if (req.method === 'DELETE') {
-    const result = await ingestService.delete(process.env.PINECONE_INDEX);
+    const result = await ingestService.deleteNamespace(process.env.PINECONE_INDEX);
     res.status(result.status).json({ success: result.success });
   }
 }

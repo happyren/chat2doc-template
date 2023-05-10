@@ -4,21 +4,15 @@ import { DirectoryLoader } from "langchain/document_loaders/fs/directory";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { PineconeStore } from 'langchain/vectorstores/pinecone';
 import { PineconeClient } from '@pinecone-database/pinecone';
+import { Document } from 'langchain/document';
 
-export class IngestService {
+export const IngestService = ((pineconeClient: PineconeClient) => {
 
-  private _pineconeClient: PineconeClient;
+  let _pineconeClient = pineconeClient;
 
-  /**
-   * Service handling the document ingestion process
-   */
-  constructor(pineconeClient: PineconeClient) {
-    this._pineconeClient = pineconeClient;
-  }
-
-  private async getPineconeIndex(pineconeIndex: string) {
+  const getPineconeIndex = async (pineconeIndex: string) => {
     try {
-      const index = this._pineconeClient.Index(pineconeIndex);
+      const index = _pineconeClient.Index(pineconeIndex);
 
       return index;
     } catch (error) {
@@ -27,31 +21,41 @@ export class IngestService {
     }
   }
 
-  public async ingest(pineconeIndex: string) {
-    if (!process.env.PINECONE_INDEX) {
-      throw new Error('Pinecone index missing');
-    }
-
+  const loadRawDocs = async () => {
     const directoryPath = process.env.CONTENT_DIRECTORY_PATH || '';
     const directoryLoader = new DirectoryLoader(directoryPath, {
       '.md': (path) => new MarkdownLoader(path),
     });
 
     const rawDocs = await directoryLoader.load();
+    return rawDocs;
+  }
 
+  const splitDocs = async (rawDocs: Document[]) => {
     const textSplitter = new RecursiveCharacterTextSplitter({
       chunkSize: 500,
       chunkOverlap: 100,
     });
 
     const docs = await textSplitter.splitDocuments(rawDocs);
+    return docs;
+  }
+
+  const ingest = async (pineconeIndex: string) => {
+    if (!process.env.PINECONE_INDEX) {
+      throw new Error('Pinecone index missing');
+    }
+
+    const rawDocs = await loadRawDocs();
+
+    const docs = await splitDocs(rawDocs);
 
     let res;
     try {
       const embeddings = new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY });
       res = await embeddings.embedDocuments(docs.map(d => d.pageContent));
 
-      const index = await this.getPineconeIndex(pineconeIndex);
+      const index = await getPineconeIndex(pineconeIndex);
 
       await PineconeStore.fromDocuments(docs, new OpenAIEmbeddings(), {
         pineconeIndex: index,
@@ -65,12 +69,12 @@ export class IngestService {
     return res;
   }
 
-  public async delete(pineconeIndex: string) {
+  const deleteNamespace = async (pineconeIndex: string) => {
     if (!process.env.PINECONE_INDEX_NAMESPACE) {
       throw new Error('Pinecone index namespace missing');
     }
 
-    const index = await this.getPineconeIndex(pineconeIndex);
+    const index = await getPineconeIndex(pineconeIndex);
 
     try {
       await index.delete1({ deleteAll: true, namespace: process.env.PINECONE_INDEX_NAMESPACE });
@@ -81,4 +85,6 @@ export class IngestService {
       return { success: false, status: 500 };
     }
   }
-}
+
+  return { ingest, deleteNamespace };
+});
