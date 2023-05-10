@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { IngestService } from '@/services/ingestService';
 import { initPineconeClient } from '@/utils/pineconeClient';
+import { MetadataGenerateService } from '@/services/metadataGenerateService';
 
 type Data = {
   data?: number[][] | undefined,
@@ -12,7 +13,7 @@ export default async function handler(
   res: NextApiResponse<Data>
 ) {
   const pineconeClient = await initPineconeClient();
-  const ingestService = IngestService(pineconeClient);
+  const ingestService = IngestService(pineconeClient, MetadataGenerateService);
 
   if(!process.env.PINECONE_INDEX) {
     throw new Error('Pinecone index missing');

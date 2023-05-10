@@ -5,10 +5,11 @@ import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { PineconeStore } from 'langchain/vectorstores/pinecone';
 import { PineconeClient } from '@pinecone-database/pinecone';
 import { Document } from 'langchain/document';
+import { MetadataGenerateService } from "./metadataGenerateService";
 
-export const IngestService = ((pineconeClient: PineconeClient) => {
-
-  let _pineconeClient = pineconeClient;
+export const IngestService = ((pineconeClient: PineconeClient, metadataGenerateService: typeof MetadataGenerateService) => {
+  const _pineconeClient = pineconeClient;
+  const _metadataGenerateService = metadataGenerateService();
 
   const getPineconeIndex = async (pineconeIndex: string) => {
     try {
@@ -33,8 +34,8 @@ export const IngestService = ((pineconeClient: PineconeClient) => {
 
   const splitDocs = async (rawDocs: Document[]) => {
     const textSplitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 500,
-      chunkOverlap: 100,
+      chunkSize: 1000,
+      chunkOverlap: 200,
     });
 
     const docs = await textSplitter.splitDocuments(rawDocs);
@@ -50,14 +51,15 @@ export const IngestService = ((pineconeClient: PineconeClient) => {
 
     const docs = await splitDocs(rawDocs);
 
+    const metaDoc = await _metadataGenerateService.labelDocs(docs);
+
     let res;
     try {
       const embeddings = new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY });
-      res = await embeddings.embedDocuments(docs.map(d => d.pageContent));
 
       const index = await getPineconeIndex(pineconeIndex);
 
-      await PineconeStore.fromDocuments(docs, new OpenAIEmbeddings(), {
+      await PineconeStore.fromDocuments(metaDoc, new OpenAIEmbeddings(), {
         pineconeIndex: index,
         namespace: process.env.PINECONE_INDEX_NAMESPACE,
         textKey: 'text',
