@@ -55,8 +55,6 @@ export const IngestService = ((pineconeClient: PineconeClient, metadataGenerateS
 
     let res;
     try {
-      const embeddings = new OpenAIEmbeddings({ openAIApiKey: process.env.OPENAI_API_KEY });
-
       const index = await getPineconeIndex(pineconeIndex);
 
       await PineconeStore.fromDocuments(metaDoc, new OpenAIEmbeddings(), {
@@ -64,6 +62,8 @@ export const IngestService = ((pineconeClient: PineconeClient, metadataGenerateS
         namespace: process.env.PINECONE_INDEX_NAMESPACE,
         textKey: 'text',
       });
+
+      return metaDoc[0].metadata.labels;
     } catch (error) {
       console.log(error);
     }

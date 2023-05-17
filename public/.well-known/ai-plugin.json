@@ -1,0 +1,18 @@
+{
+  "schema_version": "v1",
+  "name_for_human": "Chat2Doc",
+  "name_for_model": "todo",
+  "description_for_human": "Plugin for chatting to documents, you can query, submit, and ingest documents.",
+  "description_for_model": "Plugin for chatting to documents, you can query, submit, and ingest documents.",
+  "auth": {
+    "type": "none"
+  },
+  "api": {
+    "type": "openapi",
+    "url": "http://localhost:3000/openapi.yaml",
+    "is_user_authenticated": false
+  },
+  "logo_url": "http://localhost:3000/logo.png",
+  "contact_email": "legal@example.com",
+  "legal_info_url": "http://example.com/legal"
+}
