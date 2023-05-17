@@ -1,0 +1,30 @@
+openapi: 3.0.1
+info:
+  title: chat2doc
+  description: A plugin that allows the user to chat to documents, extract information, and write information.
+  version: 'v1'
+servers:
+  - url: http://localhost:3000
+paths:
+  /ingest:
+    post:
+      operationId: triggerIngest
+      summary: Trigger File Ingestions
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/postIngestResponse'
+
+components:
+  schemas:
+    postIngestResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          items:
+            type: string
+          description: The list of todos.
